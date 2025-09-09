@@ -1,3 +1,90 @@
-<html> 
-    <h1>тут тест будет проходить</h1>
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hand-Draw (HTML)</title>
+  <style>
+    body { margin:0; font-family:sans-serif; background:linear-gradient(to bottom,#fef9c3,#f0f9ff); color:#1e293b; }
+    header { position:sticky;top:0;background:rgba(255,255,255,0.9);backdrop-filter:blur(8px);border-bottom:1px solid #e2e8f0;padding:8px 16px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap; }
+    .controls label{font-size:12px;color:#475569;margin-left:8px;}
+    .controls input[type=color]{width:32px;height:32px;cursor:pointer;}
+    .controls button{margin-left:6px;padding:6px 10px;border-radius:12px;border:1px solid #cbd5e1;background:white;cursor:pointer;}
+    .controls button.primary{background:#0f172a;color:white;}
+    main{max-width:1000px;margin:20px auto;padding:0 16px;}
+    .video-box{position:relative;aspect-ratio:16/9;background:black;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;}
+    video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;}
+    #overlay{pointer-events:none;}
+    .info{font-size:14px;color:#475569;margin-top:12px;}
+  </style>
+</head>
+<body>
+  <header>
+    <div style="display:flex;align-items:center;gap:8px;">
+      <span style="font-size:20px;">🎨</span>
+      <div>
+        <div style="font-weight:600;">Hand-Draw</div>
+        <div style="font-size:12px;color:#64748b;">Волшебное рисование пальцами ✨</div>
+      </div>
+    </div>
+    <div class="controls">
+      <label>Цвет <input type="color" id="color" value="#111827"></label>
+      <label>Толщина <input type="range" id="thickness" min="2" max="30" value="6"></label>
+      <label>Сглаживание <input type="checkbox" id="smoothing" checked></label>
+      <select id="brush">
+        <option value="normal">Обычная кисть</option>
+        <option value="rainbow">Радуга 🌈</option>
+        <option value="sparkle">Блёстки ✨</option>
+        <option value="emoji">Смайлики 😀</option>
+      </select>
+      <button id="undo">Отменить</button>
+      <button id="clear">Очистить</button>
+      <button id="save" class="primary">Сохранить PNG</button>
+    </div>
+  </header>
+  <main>
+    <div class="video-box">
+      <video id="video" playsinline muted style="transform: scaleX(-1);"></video>
+      <canvas id="canvas"></canvas>
+      <canvas id="overlay"></canvas>
+    </div>
+    <div class="info">Разрешите доступ к камере. Рисуйте пальцем, а магические кисти добавят веселья 🎉</div>
+  </main>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+  <script>
+    const video=document.getElementById('video');
+    const canvas=document.getElementById('canvas');
+    const overlay=document.getElementById('overlay');
+    const ctx=canvas.getContext('2d');
+    const octx=overlay.getContext('2d');
+    let color=document.getElementById('color').value;
+    let thickness=parseInt(document.getElementById('thickness').value);
+    let smoothing=document.getElementById('smoothing').checked;
+    let brush=document.getElementById('brush').value;
+    const emojiList=['😀','🌸','🐱','⭐','❤️','🎈'];
+    const paths=[];let isDrawing=false;let hue=0;
+    function distance(a,b){const dx=a.x-b.x,dy=a.y-b.y;return Math.hypot(dx,dy);} function lerp(a,b,t){return a+(b-a)*t;}
+    function resize(){const rect=video.getBoundingClientRect();const dpr=window.devicePixelRatio||1;canvas.width=rect.width*dpr;canvas.height=rect.height*dpr;overlay.width=canvas.width;overlay.height=canvas.height;canvas.style.width=rect.width+'px';canvas.style.height=rect.height+'px';overlay.style.width=canvas.style.width;overlay.style.height=canvas.style.height;redraw();}
+    window.addEventListener('resize',resize);
+    function redraw(){ctx.clearRect(0,0,canvas.width,canvas.height);ctx.lineCap='round';ctx.lineJoin='round';for(const path of paths){if(!path.points.length) continue;ctx.lineWidth=path.thickness*(window.devicePixelRatio||1);
+        if(path.brush==='normal'||path.brush==='rainbow'){ctx.strokeStyle=path.color;ctx.beginPath();ctx.moveTo(path.points[0].x,path.points[0].y);for(let i=1;i<path.points.length;i++){if(smoothing){const prev=path.points[i-1],curr=path.points[i];const mx=lerp(prev.x,curr.x,0.5),my=lerp(prev.y,curr.y,0.5);ctx.quadraticCurveTo(prev.x,prev.y,mx,my);}else ctx.lineTo(path.points[i].x,path.points[i].y);}ctx.stroke();}
+        if(path.brush==='sparkle'){for(const p of path.points){ctx.fillStyle='hsl('+Math.random()*360+',100%,70%)';ctx.beginPath();ctx.arc(p.x,p.y,Math.random()*4+2,0,Math.PI*2);ctx.fill();}}
+        if(path.brush==='emoji'){ctx.font=path.thickness*3+'px serif';for(const p of path.points){const e=emojiList[Math.floor(Math.random()*emojiList.length)];ctx.fillText(e,p.x,p.y);}}
+    }}
+    function addPoint(px,py){if(!paths.length) return;const path=paths[paths.length-1];if(path.brush==='rainbow'){hue=(hue+5)%360;path.color='hsl('+hue+',100%,50%)';}path.points.push({x:px,y:py});}
+    document.getElementById('color').oninput=e=>color=e.target.value;
+    document.getElementById('thickness').oninput=e=>thickness=parseInt(e.target.value);
+    document.getElementById('smoothing').oninput=e=>smoothing=e.target.checked;
+    document.getElementById('brush').oninput=e=>brush=e.target.value;
+    document.getElementById('undo').onclick=()=>{paths.pop();redraw();};
+    document.getElementById('clear').onclick=()=>{paths.length=0;redraw();};
+    document.getElementById('save').onclick=()=>{const link=document.createElement('a');link.download=`hand-draw-${Date.now()}.png`;link.href=canvas.toDataURL('image/png');link.click();};
+    const hands=new Hands({locateFile:(f)=>`https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`});
+    hands.setOptions({maxNumHands:1,modelComplexity:1,minDetectionConfidence:0.6,minTrackingConfidence:0.6});
+    hands.onResults(res=>{octx.clearRect(0,0,overlay.width,overlay.height);if(!res.multiHandLandmarks||!res.multiHandLandmarks.length){isDrawing=false;return;}const lm=res.multiHandLandmarks[0];const indexTip=lm[8],thumbTip=lm[4];const pinch=distance(indexTip,thumbTip)<0.06;const px=(1-indexTip.x)*canvas.width;const py=indexTip.y*canvas.height;if(!pinch){if(!isDrawing){paths.push({color,thickness,brush,points:[{x:px,y:py}]});isDrawing=true;}else addPoint(px,py);}else{isDrawing=false;}octx.beginPath();octx.arc(px,py,Math.max(4,thickness),0,Math.PI*2);octx.fillStyle=pinch?'rgba(239,68,68,0.7)':'rgba(34,197,94,0.7)';octx.fill();redraw();});
+    const camera=new Camera(video,{onFrame:async()=>{await hands.send({image:video});},width:640,height:480});
+    camera.start();resize();
+  </script>
+</body>
 </html>
